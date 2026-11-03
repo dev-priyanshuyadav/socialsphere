@@ -43,3 +43,18 @@ export async function markConversationRead(conversationId: string) {
   });
   if (error) throw new Error(error.message);
 }
+
+export async function setConversationArchived(conversationId: string, archived: boolean) {
+  if (!conversationId) throw new Error('Conversation ID is required.');
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) throw new Error(authError.message);
+  if (!user) throw new Error('You must be signed in to change conversation settings.');
+  const { error } = await supabase.rpc('set_conversation_archived', {
+    target_conversation_id: conversationId,
+    archived,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath('/messages');
+  revalidatePath('/messages/archived');
+}

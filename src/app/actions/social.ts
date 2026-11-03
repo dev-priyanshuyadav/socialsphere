@@ -187,7 +187,7 @@ type FeedQueryRow = {
 export async function getFeed(): Promise<FeedResult> {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError) throw new Error(authError.message);
+  if (authError && authError.message !== 'Auth session missing!') throw new Error(authError.message);
   if (!user) return { user: null, bookmarks: [], posts: [] };
   const { data, error } = await supabase
     .from('posts')
@@ -315,32 +315,4 @@ export async function saveNotificationPreferences(formData: FormData) {
   if (error) throw new Error(error.message);
   revalidatePath('/notifications');
   revalidatePath('/notifications/settings');
-}
-
-export async function uploadPostMedia(formData: FormData) {
-  const file = formData.get('file');
-  if (!(file instanceof File) || file.size === 0) throw new Error('Choose an image first.');
-  const extensions: Record<string, string> = {
-    'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif',
-    'video/mp4': 'mp4', 'video/webm': 'webm',
-  };
-  const extension = extensions[file.type];
-  if (!extension) throw new Error('Use a supported JPG, PNG, WebP, GIF, MP4, or WebM file.');
-  if (file.size > 9 * 1024 * 1024) throw new Error('Media must be 9 MB or smaller.');
-  const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
-  const isPng = file.type === 'image/png' && header[0] === 0x89 && header[1] === 0x50 && header[2] === 0x4e && header[3] === 0x47;
-  const isJpeg = file.type === 'image/jpeg' && header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff;
-  const isGif = file.type === 'image/gif' && String.fromCharCode(...header.slice(0, 3)) === 'GIF';
-  const isWebp = file.type === 'image/webp' && String.fromCharCode(...header.slice(0, 4)) === 'RIFF'
-    && String.fromCharCode(...header.slice(8, 12)) === 'WEBP';
-  const isMp4 = file.type === 'video/mp4' && String.fromCharCode(...header.slice(4, 8)) === 'ftyp';
-  const isWebm = file.type === 'video/webm' && header[0] === 0x1a && header[1] === 0x45 && header[2] === 0xdf && header[3] === 0xa3;
-  if (!(isPng || isJpeg || isGif || isWebp || isMp4 || isWebm)) {
-    throw new Error('The selected file contents do not match a supported media type.');
-  }
-  const { supabase, user } = await authenticatedClient();
-  const path = `${user.id}/${crypto.randomUUID()}.${extension}`;
-  const { error } = await supabase.storage.from('social-media-private').upload(path, file, { contentType: file.type, upsert: false });
-  if (error) throw new Error(error.message);
-  return path;
 }
