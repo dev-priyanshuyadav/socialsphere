@@ -172,6 +172,8 @@ export async function toggleBookmark(postId: string) {
 }
 
 
+type FeedProfile = { username: string; display_name: string; avatar_url: string | null };
+
 type FeedQueryRow = {
   id: string;
   content: string;
@@ -179,7 +181,7 @@ type FeedQueryRow = {
   media_type: 'image' | 'video' | null;
   created_at: string;
   author_id: string;
-  profiles: { username: string; display_name: string; avatar_url: string | null }[] | null;
+  profiles: FeedProfile[] | FeedProfile | null;
   likes: { user_id: string }[];
   comments: { id: string }[];
 };
@@ -221,7 +223,7 @@ export async function getFeed(): Promise<FeedResult> {
     },
     bookmarks: (bookmarksResult.data ?? []).map((item) => item.post_id),
     posts: await Promise.all((data ?? []).map(async (post: FeedQueryRow): Promise<FeedPost> => {
-      const author = post.profiles?.[0];
+      const author = Array.isArray(post.profiles) ? post.profiles[0] : post.profiles;
       return {
         id: post.id, text: post.content, image: await resolvePostMediaUrl(supabase, post.media_url), mediaType: post.media_type, time: new Date(post.created_at).toLocaleString(),
         name: author?.display_name ?? 'SocialSphere user', handle: `@${author?.username ?? 'user'}`,
